@@ -26,8 +26,8 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtgraphs qtcharts qtserialport qtserialbus qtmultimedia qtimageformats qtquick3d qtquicktimeline qtshadertools qt5compat qtconnectivity'
-        archives: 'qtbase qtdeclarative qtquick3d qtgraphs qtcharts qtconnectivity qtserialport qtserialbus qtmultimedia'
+        modules: 'qtgraphs qtcharts qtserialport qtserialbus qtmultimedia qtimageformats qtquick3d qtquicktimeline qtshadertools qt5compat qtconnectivity qtsvg'
+        archives: 'qtbase qtdeclarative qtquick3d qtgraphs qtcharts qtconnectivity qtserialport qtserialbus qtmultimedia qtsvg'
         cache: true
 
     - name: 'Install CMake'
