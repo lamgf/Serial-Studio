@@ -30,9 +30,6 @@ jobs:
         archives: 'qtbase qtdeclarative qtquick3d qtgraphs qtcharts qtconnectivity qtserialport qtserialbus qtmultimedia'
         cache: true
 
-    - name: 'List available Qt modules (for debugging)'
-      run: python -m aqt list-qt windows desktop --modules 6.8.3 win64_msvc2022_64
-
     - name: 'Install CMake'
       uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
       with:
@@ -48,6 +45,7 @@ jobs:
       run: |
         cmake -B build -G Ninja `
           -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DBUILD_GPL3=ON `
           -DBUILD_COMMERCIAL=OFF `
           -DENABLE_GRPC=OFF `
