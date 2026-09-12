@@ -27,7 +27,7 @@ jobs:
         target: 'desktop'
         arch: 'win64_msvc2022_64'
         modules: 'qtgraphs qtcharts qtserialport qtserialbus qtmultimedia qtimageformats qtquick3d qtquicktimeline qtshadertools qt5compat qtconnectivity qtsvg'
-        archives: 'qtbase qtdeclarative qtquick3d qtgraphs qtcharts qtconnectivity qtserialport qtserialbus qtmultimedia qtsvg'
+        archives: 'qtbase qtdeclarative qtquick3d qtgraphs qtcharts qtconnectivity qtserialport qtserialbus qtmultimedia'
         cache: true
 
     - name: 'Install CMake'
@@ -88,7 +88,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: 'Upload Portable ZIP'
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      uses: actions/upload-artifact@330a01c490aca1516048f639adc76d48f6c5d4 # v5.0.0
       with:
         name: Serial-Studio-GPL-Windows-Portable
         path: Serial-Studio-GPL-Windows-Portable.zip
