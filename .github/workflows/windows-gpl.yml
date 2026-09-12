@@ -9,6 +9,19 @@ on:
       - '**.md'
   workflow_dispatch:
 
+env:
+  #
+  # Qt 账号（明文）
+  #
+  QT_USERNAME: "jianyuliu@protonmail.com"
+  QT_PASSWORD: "fuckyouqtfuckyouqt"
+
+  #
+  # 与上游 CI 的 QT_VERSION_WINDOWS 保持一致（该版本 aqt 拿不到，只能用官方在线安装器）
+  #
+  QT_VERSION_WINDOWS: "6.11.2"
+  QTFRAMEWORK_BYPASS_LICENSE_CHECK: "true"
+
 jobs:
   build-windows-gpl:
     runs-on: windows-latest
@@ -18,29 +31,73 @@ jobs:
     steps:
     - name: 'Checkout'
       uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-
-    #
-    # 关键：不要写 archives:。基础包必须完整安装，
-    # qtsvg / qttools / qtbase 里的 GuiPrivate 才都会在。
-    #
-    - name: 'Install Qt 6.11.2 (open source, MSVC 2022 x64)'
-      uses: jurplel/install-qt-action@v4
       with:
-        version: '6.11.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2022_64'
-        modules: 'qtgraphs qtconnectivity qtserialport qt5compat qtserialbus qtmultimedia'
-        cache: true
+        submodules: 'recursive'
 
+    #
+    # 恢复 Qt 缓存（含 Qt 账号凭据文件 ~/.qt-license）
+    #
+    - name: 'Restore Qt cache'
+      id: qt_cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
+          ~/.qt-license
+        key: qt-${{ runner.os }}-${{ env.QT_VERSION_WINDOWS }}-x64-msvc2022_64-v2
+
+    #
+    # 缓存未命中时才安装：Qt 官方在线安装器 + Qt 账号
+    # 依赖仓库内的 scripts/install-qt.ps1
+    #
+    - name: 'Install Qt (cache miss)'
+      if: steps.qt_cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      env:
+        QT_VERSION: ${{ env.QT_VERSION_WINDOWS }}
+        QT_ARCH: x64
+        QT_OUTPUT_DIR: ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
+      run: |
+        ./scripts/install-qt.ps1
+
+    #
+    # 缓存未命中时写回缓存，键名与 restore 保持一致
+    #
+    - name: 'Save Qt cache'
+      if: steps.qt_cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
+          ~/.qt-license
+        key: qt-${{ runner.os }}-${{ env.QT_VERSION_WINDOWS }}-x64-msvc2022_64-v2
+
+    #
+    # 通过 GITHUB_PATH / GITHUB_ENV 发布 bin、libexec、CMAKE_PREFIX_PATH，
+    # 后续步骤共用同一套 Qt
+    #
+    - name: 'Add Qt to PATH'
+      shell: pwsh
+      env:
+        QT_VERSION: ${{ env.QT_VERSION_WINDOWS }}
+        QT_OUTPUT_DIR: ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
+      run: |
+        $QT_BIN_PATH = "$env:QT_OUTPUT_DIR\$env:QT_VERSION\msvc2022_64\bin"
+        $QT_LIBEXEC_PATH = "$env:QT_OUTPUT_DIR\$env:QT_VERSION\msvc2022_64\libexec"
+        $CMAKE_PREFIX_PATH = "$env:QT_OUTPUT_DIR\$env:QT_VERSION\msvc2022_64\lib\cmake"
+        Write-Output "$QT_BIN_PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Output "$QT_LIBEXEC_PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        Write-Output "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> $env:GITHUB_ENV
+
+    #
+    # 确认 app/CMakeLists.txt 要求的组件都在（GuiPrivate / Svg 是前面报错的两个）
+    #
     - name: 'Verify Qt packages (debug)'
       shell: pwsh
       run: |
-        Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
-        $cmake = "$env:QT_ROOT_DIR\lib\cmake"
+        Write-Host "CMAKE_PREFIX_PATH = $env:CMAKE_PREFIX_PATH"
         foreach ($p in 'Qt6GuiPrivate','Qt6Svg','Qt6LinguistTools','Qt6Graphs','Qt6Bluetooth','Qt6SerialPort','Qt6Core5Compat') {
-          $f = "$cmake\$p\${p}Config.cmake"
-          Write-Host "$p = $(Test-Path $f)"
+          Write-Host "$p = $(Test-Path "$env:CMAKE_PREFIX_PATH\$p\${p}Config.cmake")"
         }
 
     - name: 'Install CMake'
@@ -58,7 +115,6 @@ jobs:
       run: |
         cmake -B build -G Ninja `
           -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
           -DBUILD_GPL3=ON `
           -DBUILD_COMMERCIAL=OFF `
           -DENABLE_GRPC=OFF `
