@@ -17,7 +17,7 @@ env:
   QT_PASSWORD: "fuckyouqtfuckyouqt"
 
   #
-  # 与上游 CI 的 QT_VERSION_WINDOWS 保持一致（该版本 aqt 拿不到，只能用官方在线安装器）
+  # 与上游 CI 的 QT_VERSION_WINDOWS 一致（aqt 拿不到这个版本，只能用官方在线安装器）
   #
   QT_VERSION_WINDOWS: "6.11.2"
   QTFRAMEWORK_BYPASS_LICENSE_CHECK: "true"
@@ -35,23 +35,20 @@ jobs:
         submodules: 'recursive'
 
     #
-    # 恢复 Qt 缓存（含 Qt 账号凭据文件 ~/.qt-license）
+    # 诊断：脚本在不在、脚本目录里都有什么
     #
-    - name: 'Restore Qt cache'
-      id: qt_cache
-      uses: actions/cache/restore@v4
-      with:
-        path: |
-          ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
-          ~/.qt-license
-        key: qt-${{ runner.os }}-${{ env.QT_VERSION_WINDOWS }}-x64-msvc2022_64-v2
+    - name: 'Diagnose 1: script presence'
+      shell: pwsh
+      run: |
+        Write-Host "install-qt.ps1 exists = $(Test-Path ./scripts/install-qt.ps1)"
+        Write-Host "---- ./scripts ----"
+        Get-ChildItem ./scripts -Force -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty Name
 
     #
-    # 缓存未命中时才安装：Qt 官方在线安装器 + Qt 账号
-    # 依赖仓库内的 scripts/install-qt.ps1
+    # 无条件安装 Qt（不用缓存，确保每次都真的装上）
     #
-    - name: 'Install Qt (cache miss)'
-      if: steps.qt_cache.outputs.cache-hit != 'true'
+    - name: 'Install Qt (online installer)'
       shell: pwsh
       env:
         QT_VERSION: ${{ env.QT_VERSION_WINDOWS }}
@@ -61,20 +58,23 @@ jobs:
         ./scripts/install-qt.ps1
 
     #
-    # 缓存未命中时写回缓存，键名与 restore 保持一致
+    # 诊断：Qt 到底装到了哪里
     #
-    - name: 'Save Qt cache'
-      if: steps.qt_cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
-          ~/.qt-license
-        key: qt-${{ runner.os }}-${{ env.QT_VERSION_WINDOWS }}-x64-msvc2022_64-v2
+    - name: 'Diagnose 2: where did Qt land'
+      shell: pwsh
+      run: |
+        $out = "${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64"
+        Write-Host "QT_OUTPUT_DIR = $out"
+        Write-Host "exists = $(Test-Path $out)"
+        Write-Host "---- top level ----"
+        Get-ChildItem $out -Force -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty Name
+        Write-Host "---- Qt6Config.cmake ----"
+        Get-ChildItem $out -Recurse -Filter Qt6Config.cmake -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty FullName
 
     #
-    # 通过 GITHUB_PATH / GITHUB_ENV 发布 bin、libexec、CMAKE_PREFIX_PATH，
-    # 后续步骤共用同一套 Qt
+    # 发布 bin / libexec / CMAKE_PREFIX_PATH，后续步骤共用
     #
     - name: 'Add Qt to PATH'
       shell: pwsh
@@ -89,9 +89,6 @@ jobs:
         Write-Output "$QT_LIBEXEC_PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         Write-Output "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> $env:GITHUB_ENV
 
-    #
-    # 确认 app/CMakeLists.txt 要求的组件都在（GuiPrivate / Svg 是前面报错的两个）
-    #
     - name: 'Verify Qt packages (debug)'
       shell: pwsh
       run: |
