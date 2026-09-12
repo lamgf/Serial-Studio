@@ -77,7 +77,7 @@ jobs:
         }
 
     #
-    # 打印所有 QT_* 变量，确认脚本有没有回写什么 
+    # 打印所有 QT_* 变量，确认脚sdfs  
     #
     - name: 'Diagnose 3: QT_* env vars'
       shell: pwsh
