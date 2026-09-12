@@ -5,7 +5,7 @@
 [![Buy Pro](https://img.shields.io/badge/Buy%20Pro-Lemon%20Squeezy-blue?logo=lemonsqueezy)](https://store.serial-studio.com/checkout/buy/e33e6d04-639f-46b7-bd68-b46d341c5b16)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/4b6f3ce14a684704980fea31d8c1632e)](https://app.codacy.com/gh/Serial-Studio/Serial-Studio/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
-**Serial Studio** turns data from your hardware into a live dashboard.
+**Serial Studio** turns data from your hardware into a live dashboard. 
 
 Connect an Arduino, ESP32, STM32, Raspberry Pi, Teensy, or anything else that speaks serial, Bluetooth, a network protocol, or an industrial bus. Describe the data format once in a project file. Serial Studio draws the plots, gauges, maps, and 3D views around it. Send commands back with buttons, sliders, and knobs. Record a session, replay it, export it as a PDF.
 
