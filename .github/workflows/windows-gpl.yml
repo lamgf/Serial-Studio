@@ -10,11 +10,10 @@ on:
   workflow_dispatch:
 
 env:
-  QT_USERNAME: "jianyuliu@protonmail.com"
-  QT_PASSWORD: "fuckyouqtfuckyouqt"
-
-  QT_VERSION_WINDOWS: "6.11.2"
-  QTFRAMEWORK_BYPASS_LICENSE_CHECK: "true"
+  #
+  # 先按探针结果改这个值：如果公开仓库里有 6.11.2 就用 6.11.2
+  #
+  QT_VERSION: "6.11.2"
 
 jobs:
   build-windows-gpl:
@@ -29,61 +28,27 @@ jobs:
         submodules: 'recursive'
 
     #
-    # 把脚本原文打印出来，看它到底读哪些环境变量
+    # aqt 走公开仓库，不需要 Qt 账号
+    # 关键：不要写 archives:，否则基础包被白名单截断（Svg / GuiPrivate 就是这么丢的）
     #
-    - name: 'Diagnose 1: dump install-qt.ps1'
+    - name: 'Install Qt (aqt, no account needed)'
+      id: qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtgraphs qtconnectivity qtserialport qt5compat'
+        cache: false
+
+    - name: 'Verify Qt packages (debug)'
       shell: pwsh
       run: |
-        Write-Host "==================== install-qt.ps1 ===================="
-        Get-Content ./scripts/install-qt.ps1
-        Write-Host "========================================================"
-
-    #
-    # 安装 Qt，并保留完整输出
-    #
-    - name: 'Install Qt (online installer)'
-      shell: pwsh
-      env:
-        QT_VERSION: ${{ env.QT_VERSION_WINDOWS }}
-        QT_ARCH: x64
-        QT_OUTPUT_DIR: ${{ github.workspace }}/Qt-${{ env.QT_VERSION_WINDOWS }}-${{ runner.os }}-x64
-      run: |
-        Write-Host "calling ./scripts/install-qt.ps1 with:"
-        Write-Host "  QT_VERSION    = $env:QT_VERSION"
-        Write-Host "  QT_ARCH       = $env:QT_ARCH"
-        Write-Host "  QT_OUTPUT_DIR = $env:QT_OUTPUT_DIR"
-        ./scripts/install-qt.ps1
-        Write-Host "script exit code = $LASTEXITCODE"
-
-    #
-    # Qt 到底装哪儿了：全盘搜索
-    #
-    - name: 'Diagnose 2: find Qt6Config.cmake anywhere'
-      shell: pwsh
-      run: |
-        $roots = @(
-          "${{ github.workspace }}",
-          "D:\a",
-          "C:\Qt",
-          "$env:RUNNER_TEMP",
-          "$env:USERPROFILE"
-        ) | Select-Object -Unique
-
-        foreach ($r in $roots) {
-          if (-not (Test-Path $r)) { continue }
-          Write-Host "---- searching under $r ----"
-          Get-ChildItem $r -Recurse -Filter Qt6Config.cmake -ErrorAction SilentlyContinue |
-            Select-Object -First 20 -ExpandProperty FullName
+        Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
+        foreach ($p in 'Qt6GuiPrivate','Qt6Svg','Qt6LinguistTools','Qt6Graphs','Qt6Bluetooth','Qt6SerialPort','Qt6Core5Compat') {
+          Write-Host "$p = $(Test-Path "$env:QT_ROOT_DIR\lib\cmake\$p\${p}Config.cmake")"
         }
-
-    #
-    # 打印所有 QT_* 变量，确认脚sdfs   
-    #
-    - name: 'Diagnose 3: QT_* env vars'
-      shell: pwsh
-      run: |
-        Get-ChildItem env: | Where-Object { $_.Name -like 'QT*' } |
-          Sort-Object Name | Format-Table -AutoSize | Out-String | Write-Host
 
     - name: 'Install CMake'
       uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
@@ -95,3 +60,57 @@ jobs:
       uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       with:
         arch: x64
+
+    - name: 'Configure (GPLv3, no PGO, no gRPC, no WebEngine)'
+      run: |
+        cmake -B build -G Ninja `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+          -DBUILD_GPL3=ON `
+          -DBUILD_COMMERCIAL=OFF `
+          -DENABLE_GRPC=OFF `
+          -DWITH_WEBENGINE=OFF `
+          -DSS_USE_MIMALLOC=OFF `
+          -DSS_PACKAGE_TYPE=msi
+
+    - name: 'Build application'
+      run: cmake --build build --config Release
+
+    - name: 'Add msbuild to PATH'
+      uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
+
+    - name: 'Install WiX'
+      run: dotnet tool install --global wix
+
+    - name: 'Create MSI installer'
+      run: |
+        cd build
+        cpack --verbose
+        $msi = Get-ChildItem *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($msi) { Move-Item $msi.FullName "../Serial-Studio-GPL-Windows.msi" }
+
+    - name: 'Create portable ZIP'
+      shell: bash
+      run: |
+        cd build
+        cpack -G TGZ || true
+        TGZ=$(ls *.tar.gz 2>/dev/null | head -1)
+        if [ -n "$TGZ" ]; then
+          7z x "$TGZ"
+          DIRNAME=$(tar -tf "$TGZ" | head -1 | cut -f1 -d"/")
+          7z a "../Serial-Studio-GPL-Windows-Portable.zip" "$DIRNAME"/*
+        fi
+
+    - name: 'Upload MSI'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Serial-Studio-GPL-Windows-MSI
+        path: Serial-Studio-GPL-Windows.msi
+        if-no-files-found: ignore
+
+    - name: 'Upload Portable ZIP'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Serial-Studio-GPL-Windows-Portable
+        path: Serial-Studio-GPL-Windows-Portable.zip
+        if-no-files-found: ignore
