@@ -31,6 +31,7 @@ jobs:
       run: |
         python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 `
           -m all `
+          --archives qtbase  `
           --outputdir "${{ github.workspace }}\Qt"
 
     - name: 'Add Qt to PATH'
