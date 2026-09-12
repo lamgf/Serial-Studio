@@ -62,8 +62,6 @@ jobs:
           -DENABLE_GRPC=OFF `
           -DWITH_WEBENGINE=OFF `
           -DSS_USE_MIMALLOC=OFF `
-          -DUSE_SYSTEM_ZLIB=ON `
-          -DUSE_SYSTEM_EXPAT=ON `
           -DSS_PACKAGE_TYPE=msi
 
     - name: 'Build application'
