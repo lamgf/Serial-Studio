@@ -27,7 +27,18 @@ jobs:
         target: 'desktop'
         arch: 'win64_msvc2022_64'
         modules: 'qtgraphs qtcharts qtserialport qtserialbus qtmultimedia qtimageformats qtquick3d qtquicktimeline qtshadertools qt5compat qtconnectivity'
-        cache: true
+        # 先关闭缓存，强制一次干净完整的安装；确认没问题后再改回 true
+        cache: false
+
+    - name: 'Inspect Qt cmake packages (debug)'
+      shell: pwsh
+      run: |
+        Write-Host "QT_ROOT_DIR = $env:QT_ROOT_DIR"
+        Get-ChildItem "$env:QT_ROOT_DIR\lib\cmake" -Directory |
+          Select-Object -ExpandProperty Name | Sort-Object
+        Write-Host "---- Private configs ----"
+        Get-ChildItem "$env:QT_ROOT_DIR\lib\cmake" -Directory -Filter '*Private*' |
+          Select-Object -ExpandProperty Name
 
     - name: 'Install CMake'
       uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.4.2
